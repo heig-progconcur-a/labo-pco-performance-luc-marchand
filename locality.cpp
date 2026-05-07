@@ -2,7 +2,7 @@
 #include <vector>
 #include <chrono>
 
-const int N = 10'000;
+const int N = 1000;
 
 int main() {
     std::vector<int> matrix(static_cast<size_t>(N) * N, 0);
