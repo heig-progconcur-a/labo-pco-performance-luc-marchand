@@ -229,13 +229,73 @@ perf stat -e cache-references,cache-misses ./locality-col
 ### Questions :
 1. **Que fait le programme ?**
    Le programme mesure les performances de deux versions d'un algorithme de multiplication de matrices :
-   - `locality-line` : utilise une approche de multiplication de matrices qui accède aux éléments de la matrice de manière contiguë (ligne par ligne), ce qui favorise la localité de cache.
-   - `locality-col` : utilise une approche de multiplication de matrices qui accède aux éléments de la matrice de manière non contiguë (colonne par colonne), ce qui peut entraîner plus de cache misses.
+   - `locality-line` : utilise une approche de multiplication de matrices qui accède aux éléments de la matrice ligne par ligne. Les données sont donc très proches les une les autres en mémoire, ce qui favorise la localité de cache.
+   - `locality-col` : utilise une approche de multiplication de matrices qui accède aux éléments de la matrice colonne par colonne. Par conséquant, les données sont plus dispersées en mémoire.
 
 2. **Quelle est la différence entre les deux exécutions ?**
-   La différence entre les deux exécutions réside dans la manière dont les éléments de la matrice sont accédés. La version `locality-line` accède aux éléments de manière contiguë, ce qui favorise la localité de cache et réduit les cache misses. En revanche, la version `locality-col` accède aux éléments de manière non contiguë, ce qui peut entraîner plus de cache misses et une performance réduite.
+   La différence réside dans la manière dont les éléments de la matrice sont accédés. La version `locality-line` accède aux éléments de manière à favoriser la localité de cache ce qui réduit les cache misses. En revanche, la version `locality-col` accède aux éléments de manière non contiguë, ce qui peut entraîner plus de cache misses et une performance réduite.
 
 3. **Comment expliquez-vous ces résultats ?**
-   Les résultats montrent que la version `locality-line` a un nombre de cache misses significativement plus faible que la version `locality-col`, ce qui s'explique par la localité de cache. Lorsque les éléments de la matrice sont accédés de manière contiguë, le processeur peut charger efficacement les données en cache, réduisant ainsi les cache misses. En revanche, lorsque les éléments sont accédés de manière non contiguë, le processeur doit charger des données de manière moins efficace, ce qui entraîne plus de cache misses et une performance réduite.
+
+Lorsque la taille `N` augmente, le nombre de `cache-misses` augmente fortement. Cela s’explique par le fait que les données dépassent progressivement la capacité des caches du processeur (L1, L2, puis L3). Les accès mémoire doivent alors plus souvent être effectués directement en RAM, ce qui est beaucoup plus lent.
+
+On observe également que la version `locality-col` génère généralement davantage de `cache-misses` que la version `locality-line`. Cela provient de la manière dont les tableaux sont stockés en mémoire en C/C++ : les éléments sont organisés ligne par ligne (*row-major order*).
+
+Dans la version `locality-line`, les accès mémoire sont contigus, ce qui permet une bonne localité spatiale et une utilisation efficace des cache lines. À l’inverse, la version `locality-col` saute continuellement d’une ligne à l’autre en mémoire, ce qui réduit l’efficacité du cache et provoque davantage de défauts de cache.
+
+Pour les petites valeurs de `N`, les différences restent relativement faibles car les données tiennent encore majoritairement dans les caches du processeur. Les mesures sont également plus sensibles au bruit du système et à l’environnement d’exécution.
+
+## Conclusion
+
+Ce travail pratique m’a permis de mieux comprendre que les performances d’un programme ne dépendent pas seulement de l’algorithme en lui-même, mais aussi de la manière dont il interagit avec le processeur et la mémoire. Les expériences sur la prédiction d’embranchements, la DRAM, le false sharing et la localité de cache montrent toutes qu’un code correct peut devenir beaucoup plus lent si son comportement n’est pas adapté à l’architecture matérielle.
+
+J’ai retenu que, pour améliorer les performances, il faut limiter les accès mémoire coûteux, favoriser les données contiguës, éviter les branches difficiles à prévoir et faire attention au partage de lignes de cache entre threads. En programmation concurrente, ces effets sont encore plus importants, car plusieurs cœurs peuvent se gêner mutuellement à cause des invalidations de cache, des accès mémoire désordonnés ou d’une mauvaise répartition des données.
+
+En pratique, cela signifie qu’il faut penser la structure des données et l’organisation du travail en parallèle avec autant de soin que l’algorithme lui-même. Une bonne parallélisation ne consiste pas seulement à ajouter des threads : il faut aussi réduire les conflits matériels pour tirer réellement parti du processeur.
+
+
+# Résumé — Concepts importants du labo performance
+
+## Prédiction d’embranchements (Branch Prediction)
+
+Les processeurs modernes essayent de deviner le résultat des branchements (`if`, boucles, etc.) afin de continuer l’exécution sans attendre.  
+Si la prédiction est correcte, le programme reste rapide.  
+Si elle est fausse (*branch misprediction*), le pipeline du processeur doit être vidé puis rechargé, ce qui provoque une perte de performances.
+
+--> Des branchements réguliers et prévisibles sont donc plus rapides que des branchements aléatoires.
+
+---
+
+## Latences de la SDRAM
+
+La SDRAM (mémoire RAM) est beaucoup plus lente que le processeur.  
+Lorsqu’une donnée n’est pas présente dans le cache (*cache miss*), le CPU doit attendre qu’elle soit récupérée depuis la RAM.
+
+Cette attente est appelée latence mémoire.  
+Les performances d’un programme peuvent fortement diminuer lorsqu’il effectue beaucoup d’accès RAM.
+
+--> Les caches CPU servent justement à limiter ces accès lents à la mémoire principale.
+
+---
+
+## False Sharing
+
+Le *false sharing* apparaît lorsque plusieurs threads modifient des variables différentes mais situées dans la même cache line.
+
+Même si les threads ne partagent pas réellement les mêmes données, les caches des différents cœurs doivent continuellement se synchroniser, ce qui provoque beaucoup de trafic mémoire et ralentit fortement le programme.
+
+--> On peut éviter ce problème en séparant les données des threads dans différentes cache lines (padding/alignment).
+
+---
+
+## Cache Locality
+
+Le *cache locality* décrit la manière dont un programme accède à la mémoire afin de profiter efficacement des caches CPU.
+
+Lorsque les données sont accédées de manière contiguë en mémoire, plusieurs données utiles sont déjà chargées dans la même cache line, ce qui réduit les cache misses.
+
+À l’inverse, des accès dispersés en mémoire provoquent davantage de cache misses et donc davantage d’accès RAM.
+
+--> Une bonne localité mémoire améliore fortement les performances.
 
    
